@@ -1,12 +1,35 @@
+import MovieCard from "@/components/MovieCard";
 import SearchBar from "@/components/SearchBar";
 import { icons } from "@/constants/icons";
 import { images } from "@/constants/images";
+import { fetchMovies } from "@/services/api";
+import useFetch from "@/services/useFetch";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Image, ScrollView, StatusBar, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  ScrollView,
+  StatusBar,
+  Text,
+  View,
+} from "react-native";
+
+type Movie = {
+  id: number;
+  title: string;
+  release_date?: string;
+};
 
 export default function Index() {
   const router = useRouter();
+
+  const {
+    data: movies,
+    loading: moviesLoading,
+    error: moviesError,
+  } = useFetch(() => fetchMovies({ query: "" }));
 
   return (
     <>
@@ -22,15 +45,54 @@ export default function Index() {
             className="w-12 h-10 mt-20  mb-5 mx-auto"
           />
 
-          <View className="flex-1 mt-5">
-            <SearchBar
-              onPress={() => router.push("/search")}
-              placeholder="Search for a movies !"
+          {moviesLoading ? (
+            <ActivityIndicator
+              size="large"
+              color="#0000ff"
+              className="mt-10 self-center"
             />
-          </View>
-          <View className="h-20">
-            <Text className="text-white">my self</Text>
-          </View>
+          ) : moviesError ? (
+            <Text>Error: {moviesError?.message}</Text>
+          ) : (
+            <View className="flex-1 mt-5">
+              <SearchBar
+                onPress={() => router.push("/search")}
+                placeholder="Search for a movies !"
+              />
+
+              <>
+                <Text className="text-white text-lg font-bold mt-5 mb-3">
+                  Latest Movies
+                </Text>
+
+                <FlatList
+                  data={movies}
+                  renderItem={({ item }) => <MovieCard {...item} />}
+                  keyExtractor={(item) => item.id.toString()}
+                  numColumns={3}
+                  columnWrapperStyle={{
+                    justifyContent: "flex-start",
+                    gap: 20,
+                    paddingRight: 5,
+                    marginBottom: 10,
+                  }}
+                  className="mt-2 pb-32"
+                  scrollEnabled={false}
+                />
+
+                {/* {movies?.slice(0, 12).map((movie: Movie) => (
+                  <View key={movie.id} className="mb-3">
+                    <Text className="text-white font-semibold">
+                      {movie.title}
+                    </Text>
+                    <Text className="text-gray-400 text-xs">
+                      {movie.release_date || "No release date"}
+                    </Text>
+                  </View>
+                ))} */}
+              </>
+            </View>
+          )}
         </ScrollView>
       </View>
     </>
