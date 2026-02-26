@@ -14,6 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
+import "react-native-url-polyfill/auto";
 
 export default function Index() {
   const router = useRouter();
