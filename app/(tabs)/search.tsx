@@ -3,6 +3,7 @@ import SearchBar from "@/components/SearchBar";
 import { icons } from "@/constants/icons";
 import { images } from "@/constants/images";
 import { fetchMovies } from "@/services/api";
+import { updateSearchCount } from "@/services/appwrite";
 import useFetch from "@/services/useFetch";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Text, View } from "react-native";
@@ -19,14 +20,22 @@ const SearchScreen = () => {
 
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
-      if (searchQuery.trim()) {
-        await loadMovies();
-      } else {
-        reset();
+      try {
+        if (searchQuery.trim()) {
+          const fetchedMovies = await loadMovies();
+          if (fetchedMovies?.length && fetchedMovies[0]) {
+            await updateSearchCount(searchQuery, fetchedMovies[0]);
+          }
+        } else {
+          reset();
+        }
+      } catch (error) {
+        console.log("Search tracking failed:", error);
       }
     }, 500);
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
+
   return (
     <View className="flex-1 bg-primary">
       <Image
@@ -37,14 +46,17 @@ const SearchScreen = () => {
 
       <FlatList
         data={movies}
-        renderItem={({ item }) => <MovieCard {...item} />}
+        renderItem={({ item }) => (
+          <View style={{ flex: 1, maxWidth: "31%" }}>
+            <MovieCard {...item} />
+          </View>
+        )}
         className="px-5"
         keyExtractor={(item) => item.id.toString()}
         numColumns={3}
         columnWrapperStyle={{
-          justifyContent: "flex-start",
-          gap: 16,
-          marginVertical: 16,
+          justifyContent: "space-between",
+          marginBottom: 16,
         }}
         contentContainerStyle={{
           paddingBottom: 100,
@@ -71,7 +83,7 @@ const SearchScreen = () => {
                 color="#0000ff"
                 className="my-3 "
               />
-            )}{" "}
+            )}
             {error && (
               <Text className="text-red-500 px-5 my-3">
                 Error: {error.message}

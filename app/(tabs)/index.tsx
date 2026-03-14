@@ -3,30 +3,39 @@ import SearchBar from "@/components/SearchBar";
 import { icons } from "@/constants/icons";
 import { images } from "@/constants/images";
 import { fetchMovies } from "@/services/api";
+import { getTrendingMovies } from "@/services/appwrite";
 import useFetch from "@/services/useFetch";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Text, View } from "react-native";
 
 const SearchScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
+
+  const {
+    data: trendingMovies,
+    loading: trendingLoading,
+    error: trendingError,
+  } = useFetch(getTrendingMovies);
   const {
     data: movies,
     loading,
     error,
     refetch: loadMovies,
-    reset,
   } = useFetch(() => fetchMovies({ query: searchQuery }), false);
 
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
-      if (searchQuery.trim()) {
-        await loadMovies();
-      } else {
-        reset();
-      }
+      // if (searchQuery.trim()) {
+      //   await loadMovies();
+      // } else {
+      //   reset();
+      // }
+
+      await loadMovies();
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [searchQuery, loadMovies]);
+
   return (
     <View className="flex-1 bg-primary">
       <Image
@@ -37,14 +46,17 @@ const SearchScreen = () => {
 
       <FlatList
         data={movies}
-        renderItem={({ item }) => <MovieCard {...item} />}
+        renderItem={({ item }) => (
+          <View style={{ flex: 1, maxWidth: "31%" }}>
+            <MovieCard {...item} />
+          </View>
+        )}
         className="px-5"
         keyExtractor={(item) => item.id.toString()}
         numColumns={3}
         columnWrapperStyle={{
-          justifyContent: "flex-start",
-          gap: 16,
-          marginVertical: 16,
+          justifyContent: "space-between",
+          marginBottom: 16,
         }}
         contentContainerStyle={{
           paddingBottom: 100,
@@ -65,13 +77,59 @@ const SearchScreen = () => {
                 onChangeText={(text: string) => setSearchQuery(text)}
               />
             </View>
+            {!searchQuery.trim() && (
+              <View className="mb-6">
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-lg text-white font-bold">
+                    Trending Searches
+                  </Text>
+                </View>
+                {trendingLoading && (
+                  <ActivityIndicator size="small" color="#0000ff" />
+                )}
+                {trendingError && (
+                  <Text className="text-red-500">
+                    Error: {trendingError.message}
+                  </Text>
+                )}
+                {!trendingLoading &&
+                  !trendingError &&
+                  (trendingMovies?.length ?? 0) > 0 && (
+                    <FlatList
+                      data={trendingMovies ?? []}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyExtractor={(item) => item.movie_id.toString()}
+                      renderItem={({ item }) => (
+                        <View className="mr-4" style={{ width: 120 }}>
+                          <Image
+                            source={{ uri: item.poster_url }}
+                            className="w-full h-40 rounded-lg"
+                            resizeMode="cover"
+                          />
+                          <Text
+                            className="text-white text-xs font-semibold mt-2"
+                            numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          <Text
+                            className="text-light-300 text-xs"
+                            numberOfLines={1}>
+                            {item.search_term}
+                          </Text>
+                        </View>
+                      )}
+                    />
+                  )}
+              </View>
+            )}
             {loading && (
               <ActivityIndicator
                 size="large"
                 color="#0000ff"
                 className="my-3 "
               />
-            )}{" "}
+            )}
             {error && (
               <Text className="text-red-500 px-5 my-3">
                 Error: {error.message}
