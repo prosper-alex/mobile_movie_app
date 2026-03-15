@@ -22,10 +22,7 @@ const SearchScreen = () => {
     const timeoutId = setTimeout(async () => {
       try {
         if (searchQuery.trim()) {
-          const fetchedMovies = await loadMovies();
-          if (fetchedMovies?.length && fetchedMovies[0]) {
-            await updateSearchCount(searchQuery, fetchedMovies[0]);
-          }
+          await loadMovies();
         } else {
           reset();
         }
@@ -34,8 +31,13 @@ const SearchScreen = () => {
       }
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [loadMovies, reset, searchQuery]);
 
+  useEffect(() => {
+    if (movies?.length && movies[0]) {
+      updateSearchCount(searchQuery, movies[0]);
+    }
+  }, [movies, searchQuery]);
   return (
     <View className="flex-1 bg-primary">
       <Image
