@@ -1,11 +1,28 @@
 // Track the searches made by a user
 import client from "@/lib/appwrite";
+import type { MovieSummary } from "@/types/movies";
 import { ID, Query, TablesDB } from "appwrite";
 
-const DATABASE_ID = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID!;
-const TABLE_ID = process.env.EXPO_PUBLIC_APPWRITE_TABLE_ID!;
+const DATABASE_ID = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID;
+const TABLE_ID = process.env.EXPO_PUBLIC_APPWRITE_TABLE_ID;
 
-const tablesDB = new TablesDB(client);
+const tablesDB = client ? new TablesDB(client) : null;
+const APPWRITE_TIMEOUT_MS = 6000;
+
+const withTimeout = async <T,>(promise: Promise<T>, ms: number) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("Appwrite request timed out."));
+    }, ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 const SEARCH_KEYS = [
   "SearchTerm",
   "search_term",
@@ -31,13 +48,23 @@ const isMissingRequiredAttributeError = (error: unknown) => {
 };
 
 const tryListRowsByKnownSearchKeys = async (query: string) => {
+  if (!tablesDB || !DATABASE_ID || !TABLE_ID) {
+    return {
+      result: { rows: [] as any[] },
+      matchedSearchKey: null as string | null,
+    };
+  }
+
   for (const key of SEARCH_KEYS) {
     try {
-      const result = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: TABLE_ID,
-        queries: [Query.equal(key, query)],
-      });
+      const result = await withTimeout(
+        tablesDB.listRows({
+          databaseId: DATABASE_ID,
+          tableId: TABLE_ID,
+          queries: [Query.equal(key, query)],
+        }),
+        APPWRITE_TIMEOUT_MS,
+      );
       return { result, matchedSearchKey: key };
     } catch (error) {
       if (!isMissingAttributeError(error)) throw error;
@@ -56,9 +83,11 @@ const listRowsBySearchTerm = async (query: string) => {
 
 const createSearchRow = async (
   query: string,
-  movie: Movie,
+  movie: MovieSummary,
   preferredSearchKey: string | null,
 ) => {
+  if (!tablesDB || !DATABASE_ID || !TABLE_ID) return null;
+
   const poster = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
   const searchCandidates = preferredSearchKey
     ? [
@@ -85,12 +114,15 @@ const createSearchRow = async (
   let lastError: unknown = null;
   for (const payload of payloads) {
     try {
-      return await tablesDB.createRow({
-        databaseId: DATABASE_ID,
-        tableId: TABLE_ID,
-        rowId: ID.unique(),
-        data: payload,
-      });
+      return await withTimeout(
+        tablesDB.createRow({
+          databaseId: DATABASE_ID,
+          tableId: TABLE_ID,
+          rowId: ID.unique(),
+          data: payload,
+        }),
+        APPWRITE_TIMEOUT_MS,
+      );
     } catch (error) {
       lastError = error;
       if (
@@ -109,16 +141,21 @@ const createSearchRow = async (
   );
 };
 
-export const updateSearchCount = async (query: string, movie: Movie) => {
+export const updateSearchCount = async (query: string, movie: MovieSummary) => {
+  if (!tablesDB || !DATABASE_ID || !TABLE_ID) return;
+
   try {
     const { result, matchedSearchKey } = await listRowsBySearchTerm(query);
 
     if (result.rows.length > 0) {
       const existingMovie = result.rows[0];
 
-      await tablesDB.updateRow(DATABASE_ID, TABLE_ID, existingMovie.$id, {
-        count: existingMovie.count + 1,
-      });
+      await withTimeout(
+        tablesDB.updateRow(DATABASE_ID, TABLE_ID, existingMovie.$id, {
+          count: existingMovie.count + 1,
+        }),
+        APPWRITE_TIMEOUT_MS,
+      );
     } else {
       await createSearchRow(query, movie, matchedSearchKey);
     }
@@ -128,9 +165,9 @@ export const updateSearchCount = async (query: string, movie: Movie) => {
   }
 };
 
-export const getTrendingMovies = async (): Promise<
-  TrendingMovie[] | undefined
-> => {
+export const getTrendingMovies = async (): Promise<TrendingMovie[]> => {
+  if (!tablesDB || !DATABASE_ID || !TABLE_ID) return [];
+
   try {
     const mapRowToTrendingMovie = (row: Record<string, unknown>) => {
       const searchTermKey = SEARCH_KEYS.find((key) => key in row);
@@ -166,18 +203,24 @@ export const getTrendingMovies = async (): Promise<
 
     let result;
     try {
-      result = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: TABLE_ID,
-        queries: [Query.orderDesc("count"), Query.limit(5)],
-      });
+      result = await withTimeout(
+        tablesDB.listRows({
+          databaseId: DATABASE_ID,
+          tableId: TABLE_ID,
+          queries: [Query.orderDesc("count"), Query.limit(5)],
+        }),
+        APPWRITE_TIMEOUT_MS,
+      );
     } catch (error) {
       if (!isMissingAttributeError(error)) throw error;
-      result = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: TABLE_ID,
-        queries: [Query.limit(5)],
-      });
+      result = await withTimeout(
+        tablesDB.listRows({
+          databaseId: DATABASE_ID,
+          tableId: TABLE_ID,
+          queries: [Query.limit(5)],
+        }),
+        APPWRITE_TIMEOUT_MS,
+      );
     }
 
     return result.rows
@@ -185,6 +228,6 @@ export const getTrendingMovies = async (): Promise<
       .filter((row): row is TrendingMovie => row !== null);
   } catch (error) {
     console.log(error);
-    return undefined;
+    return [];
   }
 };

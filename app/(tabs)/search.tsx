@@ -1,115 +1,74 @@
-import MovieCard from "@/components/MovieCard";
+import MovieGrid from "@/components/MovieGrid";
+import Screen from "@/components/Screen";
 import SearchBar from "@/components/SearchBar";
 import { icons } from "@/constants/icons";
-import { images } from "@/constants/images";
-import { fetchMovies } from "@/services/api";
 import { updateSearchCount } from "@/services/appwrite";
-import useFetch from "@/services/useFetch";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Text, View } from "react-native";
+import useMovieSearch from "@/hooks/useMovieSearch";
+import type { MovieSummary } from "@/types/movies";
+import React, { useCallback } from "react";
+import { ActivityIndicator, Image, Text, View } from "react-native";
 
 const SearchScreen = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const {
-    data: movies,
-    loading,
-    error,
-    refetch: loadMovies,
-    reset,
-  } = useFetch(() => fetchMovies({ query: searchQuery }), false);
+  const { query, setQuery, movies, loading, error } = useMovieSearch({
+    emptyQueryBehavior: "reset",
+    debounceMs: 500,
+  });
 
-  useEffect(() => {
-    const timeoutId = setTimeout(async () => {
-      try {
-        if (searchQuery.trim()) {
-          await loadMovies();
-        } else {
-          reset();
-        }
-      } catch (error) {
-        console.log("Search tracking failed:", error);
-      }
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [loadMovies, reset, searchQuery]);
+  const trackMovieClick = useCallback(
+    (movie: MovieSummary) => {
+      if (!query.trim()) return;
+      void updateSearchCount(query, movie).catch((err) => {
+        console.log("Search tracking failed:", err);
+      });
+    },
+    [query],
+  );
 
-  useEffect(() => {
-    if (movies?.length && movies[0]) {
-      updateSearchCount(searchQuery, movies[0]);
-    }
-  }, [movies, searchQuery]);
   return (
-    <View className="flex-1 bg-primary">
-      <Image
-        source={images.bg}
-        className="flex-1 absolute w-full h-full z-0 "
-        resizeMode="cover"
-      />
-
-      <FlatList
+    <Screen className="px-5">
+      <MovieGrid
         data={movies}
-        renderItem={({ item }) => (
-          <View style={{ flex: 1, maxWidth: "31%" }}>
-            <MovieCard {...item} />
-          </View>
-        )}
-        className="px-5"
-        keyExtractor={(item) => item.id.toString()}
-        numColumns={3}
-        columnWrapperStyle={{
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}
-        contentContainerStyle={{
-          paddingBottom: 100,
-        }}
+        onItemPress={trackMovieClick}
         ListHeaderComponent={
           <>
-            <View className="w-full flex-row justify-center mt-20 ">
+            <View className="w-full flex-row justify-center mt-6">
               <Image
                 source={icons.logo}
                 className="w-12 h-10 mb-5"
                 resizeMode="contain"
               />
             </View>
-            <View className="my-5 ">
+            <View className="my-5">
               <SearchBar
                 placeholder="Search movies..."
-                value={searchQuery}
-                onChangeText={(text: string) => setSearchQuery(text)}
+                value={query}
+                onChangeText={setQuery}
               />
             </View>
             {loading && (
-              <ActivityIndicator
-                size="large"
-                color="#0000ff"
-                className="my-3 "
-              />
+              <ActivityIndicator size="large" color="#0000ff" className="my-3" />
             )}
             {error && (
-              <Text className="text-red-500 px-5 my-3">
-                Error: {error.message}
-              </Text>
+              <Text className="text-red-500 my-3">Error: {error.message}</Text>
             )}
-            {!loading && !error && searchQuery.trim() && movies?.length > 0 && (
+            {!loading && !error && query.trim() && (movies?.length ?? 0) > 0 && (
               <Text className="text-xl text-white font-bold">
-                Search Result for{" "}
-                <Text className="text-accent">{searchQuery}</Text>
+                Search results for <Text className="text-accent">{query}</Text>
               </Text>
             )}
           </>
         }
         ListEmptyComponent={
           !loading && !error ? (
-            <View className="mt-10 px-5">
+            <View className="mt-10">
               <Text className="text-gray-500 text-center">
-                {searchQuery.trim() ? "No movies found " : "Search for a movie"}
+                {query.trim() ? "No movies found" : "Search for a movie"}
               </Text>
             </View>
           ) : null
         }
       />
-    </View>
+    </Screen>
   );
 };
 

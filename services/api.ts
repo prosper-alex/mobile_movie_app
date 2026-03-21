@@ -8,7 +8,11 @@ export const TMDB_CONFIG = {
   },
 };
 
-export const fetchMovies = async ({ query }: { query: string }) => {
+export const fetchMovies = async ({
+  query,
+}: {
+  query: string;
+}): Promise<Movie[]> => {
   if (!TMDB_CONFIG.API_KEY) {
     throw new Error(
       "Missing TMDB API key. Set EXPO_PUBLIC_MOVIE_API_KEY in your .env file.",
@@ -32,7 +36,32 @@ export const fetchMovies = async ({ query }: { query: string }) => {
   }
 
   const data = await response.json();
-  return data.results;
+  return Array.isArray(data?.results) ? (data.results as Movie[]) : [];
+};
+
+export const fetchMovieDetails = async (
+  movieId: number,
+): Promise<MovieDetails> => {
+  if (!TMDB_CONFIG.API_KEY) {
+    throw new Error(
+      "Missing TMDB API key. Set EXPO_PUBLIC_MOVIE_API_KEY in your .env file.",
+    );
+  }
+
+  const endpoint = `${TMDB_CONFIG.BASE_URL}/movie/${movieId}`;
+  const response = await fetch(endpoint, {
+    method: "GET",
+    headers: TMDB_CONFIG.headers,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Failed to fetch movie details (${response.status} ${response.statusText}): ${errorBody}`,
+    );
+  }
+
+  return (await response.json()) as MovieDetails;
 };
 
 // const url = "https://api.themoviedb.org/3/authentication";

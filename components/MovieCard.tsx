@@ -1,7 +1,12 @@
 import { icons } from "@/constants/icons";
+import type { MovieSummary } from "@/types/movies";
 import { Link } from "expo-router";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
+
+type Props = MovieSummary & {
+  onPress?: () => void;
+};
 
 const MovieCard = ({
   id,
@@ -9,7 +14,8 @@ const MovieCard = ({
   title,
   vote_average,
   release_date,
-}: Movie) => {
+  onPress,
+}: Props) => {
   const posterUrl = poster_path
     ? `https://image.tmdb.org/t/p/w500${poster_path}`
     : "https://placehold.co/600x900/1a1a1a/ffffff.png?text=No+Image";
@@ -18,7 +24,7 @@ const MovieCard = ({
 
   return (
     <Link href={`/movies/${id}`} asChild>
-      <TouchableOpacity className="w-full">
+      <TouchableOpacity className="w-full" onPress={onPress}>
         <Image
           source={{ uri: posterUrl }}
           className="w-full h-52 rounded-lg"

@@ -2,9 +2,15 @@ import { icons } from "@/constants/icons";
 import { images } from "@/constants/images";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Image, ImageBackground, Text, View } from "react-native";
+import { Image, ImageBackground, Text, View, type ImageSourcePropType } from "react-native";
 
-const TabIcon = ({ focused, icon, title }: any) => {
+type TabIconProps = {
+  focused: boolean;
+  icon: ImageSourcePropType;
+  title: string;
+};
+
+const TabIcon = ({ focused, icon, title }: TabIconProps) => {
   if (focused) {
     return (
       <ImageBackground
@@ -32,7 +38,7 @@ const TabIcon = ({ focused, icon, title }: any) => {
   );
 };
 
-const _layout = () => {
+const TabsLayout = () => {
   return (
     <Tabs
       screenOptions={{
@@ -76,16 +82,6 @@ const _layout = () => {
         }}
       />
       <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} icon={icons.person} title="Profile" />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="saved"
         options={{
           title: "Saved",
@@ -95,8 +91,18 @@ const _layout = () => {
           ),
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} icon={icons.person} title="Profile" />
+          ),
+        }}
+      />
     </Tabs>
   );
 };
 
-export default _layout;
+export default TabsLayout;

@@ -7,14 +7,24 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 1. Install dependencies
 
    ```bash
-   npm install
+   pnpm install
    ```
 
 2. Start the app
 
    ```bash
-   npx expo start
+   pnpm start
    ```
+
+## Environment variables
+
+Create a `.env` file (or edit the existing one) and set:
+
+- `EXPO_PUBLIC_MOVIE_API_KEY` (required): TMDB v4 API Read Access Token (used as `Authorization: Bearer ...`)
+- `EXPO_PUBLIC_APPWRITE_ENDPOINT` (optional): Appwrite endpoint (used for trending searches)
+- `EXPO_PUBLIC_APPWRITE_PROJECT_ID` (optional): Appwrite project id
+- `EXPO_PUBLIC_APPWRITE_DATABASE_ID` (optional): Appwrite database id
+- `EXPO_PUBLIC_APPWRITE_TABLE_ID` (optional): Appwrite table id
 
 In the output, you'll find options to open the app in a
 
