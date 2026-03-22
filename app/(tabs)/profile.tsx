@@ -2,6 +2,7 @@ import Button from "@/components/Button";
 import Screen from "@/components/Screen";
 import { icons } from "@/constants/icons";
 import client, { isAppwriteConfigured } from "@/lib/appwrite";
+import { useAuth } from "@/providers/AuthProvider";
 import { useSavedMovies } from "@/providers/SavedMoviesProvider";
 import React from "react";
 import { Image, Text, View } from "react-native";
@@ -10,6 +11,11 @@ const tmdbConfigured = Boolean(process.env.EXPO_PUBLIC_MOVIE_API_KEY);
 
 const ProfileScreen = () => {
   const { saved, clear } = useSavedMovies();
+  const { state, logout } = useAuth();
+  const userLabel =
+    state.status === "authenticated"
+      ? state.user.name || state.user.email || "User"
+      : "Guest";
 
   return (
     <Screen className="px-5">
@@ -22,6 +28,9 @@ const ProfileScreen = () => {
       </View>
 
       <Text className="text-xl text-white font-bold mb-2">Profile</Text>
+      <Text className="text-light-200 mb-2">
+        Signed in as: <Text className="text-white font-semibold">{userLabel}</Text>
+      </Text>
       <Text className="text-light-200 mb-6">
         Saved movies: <Text className="text-white font-semibold">{saved.length}</Text>
       </Text>
@@ -45,7 +54,14 @@ const ProfileScreen = () => {
         </Text>
       </View>
 
-      <Button title="Clear saved movies" variant="danger" onPress={() => void clear()} />
+      <View className="gap-y-3">
+        <Button
+          title="Clear saved movies"
+          variant="danger"
+          onPress={() => void clear()}
+        />
+        <Button title="Sign out" variant="secondary" onPress={() => void logout()} />
+      </View>
     </Screen>
   );
 };
