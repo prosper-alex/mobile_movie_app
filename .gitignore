@@ -38,6 +38,9 @@ yarn-error.*
 
 app-example
 
+# Local Gradle wrapper cache (avoid repeated downloads without using global Gradle)
+.gradle-home/
+
 # generated native folders
 /ios
 /android
