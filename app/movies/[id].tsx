@@ -77,7 +77,9 @@ const MovieDetailsScreen = () => {
       )}
 
       {!loading && !error && movie && (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}>
           <View className="flex-row">
             <Image
               source={{

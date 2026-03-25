@@ -27,7 +27,8 @@ const MovieCard = ({
       <TouchableOpacity className="w-full" onPress={onPress}>
         <Image
           source={{ uri: posterUrl }}
-          className="w-full h-52 rounded-lg"
+          style={{ width: "100%", aspectRatio: 2 / 3 }}
+          className="rounded-lg"
           resizeMode="cover"
         />
         <Text

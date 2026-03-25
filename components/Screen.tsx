@@ -17,10 +17,11 @@ export default function Screen({ children, className }: Props) {
         className="flex-1 absolute w-full h-full z-0"
         resizeMode="cover"
       />
-      <SafeAreaView className={["flex-1", className].filter(Boolean).join(" ")} edges={["top"]}>
+      <SafeAreaView
+        className={["flex-1", className].filter(Boolean).join(" ")}
+        edges={["top", "bottom"]}>
         {children}
       </SafeAreaView>
     </View>
   );
 }
-

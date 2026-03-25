@@ -59,8 +59,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
     setState({ status: "unauthenticated", user: null });
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      console.log("Failed to clear auth storage:", err);
+    }
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({ state, login, logout }), [state, login, logout]);
@@ -73,4 +77,3 @@ export const useAuth = () => {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 };
-

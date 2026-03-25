@@ -3,8 +3,8 @@ import Screen from "@/components/Screen";
 import SearchBar from "@/components/SearchBar";
 import TrendingMovieCard from "@/components/TrendingMovieCard";
 import { icons } from "@/constants/icons";
-import { getTrendingMovies } from "@/services/appwrite";
 import useMovieSearch from "@/hooks/useMovieSearch";
+import { getTrendingMovies } from "@/services/appwrite";
 import useFetch from "@/services/useFetch";
 import React, { useMemo } from "react";
 import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
@@ -68,7 +68,7 @@ const HomeScreen = () => {
             {!query.trim() && (
               <View className="mb-6">
                 <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-lg text-white font-bold">
+                  <Text className="text-lg text-white font-bold my-9">
                     Trending Searches
                   </Text>
                 </View>
@@ -80,26 +80,36 @@ const HomeScreen = () => {
                     Error: {trendingError.message}
                   </Text>
                 )}
-                {!trendingLoading && !trendingError && uniqueTrending.length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {uniqueTrending.map((movie, index) => (
-                      <TrendingMovieCard
-                        key={movie.movie_id}
-                        movie={movie}
-                        rank={index + 1}
-                      />
-                    ))}
-                  </ScrollView>
-                )}
-                {!trendingLoading && !trendingError && uniqueTrending.length === 0 && (
-                  <Text className="text-light-300">
-                    No trending searches yet.
-                  </Text>
-                )}
+                {!trendingLoading &&
+                  !trendingError &&
+                  uniqueTrending.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}>
+                      {uniqueTrending.map((movie, index) => (
+                        <TrendingMovieCard
+                          key={movie.movie_id}
+                          movie={movie}
+                          rank={index + 1}
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
+                {!trendingLoading &&
+                  !trendingError &&
+                  uniqueTrending.length === 0 && (
+                    <Text className="text-light-300">
+                      No trending searches yet.
+                    </Text>
+                  )}
               </View>
             )}
             {loading && (
-              <ActivityIndicator size="large" color="#0000ff" className="my-3" />
+              <ActivityIndicator
+                size="large"
+                color="#0000ff"
+                className="my-3"
+              />
             )}
             {error && (
               <Text className="text-red-500 my-3">Error: {error.message}</Text>
@@ -108,7 +118,8 @@ const HomeScreen = () => {
               <Text className="text-xl text-white font-bold">
                 {query.trim() ? (
                   <>
-                    Search results for <Text className="text-accent">{query}</Text>
+                    Search results for{" "}
+                    <Text className="text-accent">{query}</Text>
                   </>
                 ) : (
                   "Popular movies"
