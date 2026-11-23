@@ -1,13 +1,14 @@
 import Button from "@/components/Button";
 import MovieGrid from "@/components/MovieGrid";
+import RecoveryMessage from "@/components/RecoveryMessage";
 import Screen from "@/components/Screen";
 import { icons } from "@/constants/icons";
 import { useSavedMovies } from "@/providers/SavedMoviesProvider";
 import React from "react";
-import { Image, Text, View } from "react-native";
+import { ActivityIndicator, Image, Text, View } from "react-native";
 
 const SavedScreen = () => {
-  const { saved, hydrated, clear } = useSavedMovies();
+  const { saved, hydrated, pending, error, clear, retry } = useSavedMovies();
 
   return (
     <Screen className="px-5">
@@ -31,15 +32,18 @@ const SavedScreen = () => {
                   <Button
                     title="Clear all"
                     variant="danger"
+                    disabled={pending || !hydrated}
                     onPress={() => void clear()}
                   />
                 </View>
               )}
             </View>
+            {pending ? <ActivityIndicator color="#AB8BFF" accessibilityLabel="Updating saved movies" /> : null}
+            {error ? <RecoveryMessage message={error.message} busy={pending} onRetry={() => void retry()} /> : null}
           </>
         }
         ListEmptyComponent={
-          hydrated ? (
+          hydrated && !error ? (
             <View className="mt-10">
               <Text className="text-gray-500 text-center">
                 No saved movies yet.

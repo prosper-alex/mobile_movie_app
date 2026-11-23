@@ -1,62 +1,77 @@
-// fetchMovies
-
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isAbortError } from "@/services/request";
 
-// fetchMovieDetails
-const useFetch = <T>(fetchFunction: () => Promise<T>, autoFetch = true) => {
+const useFetch = <T,>(fetchFunction: (signal?: AbortSignal) => Promise<T>, autoFetch = true) => {
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(autoFetch);
   const [error, setError] = useState<Error | null>(null);
-  const activeRequestIdRef = useRef(0);
-  const isMountedRef = useRef(true);
+  const activeRequestId = useRef(0);
+  const mounted = useRef(true);
+  const controller = useRef<AbortController | null>(null);
+  const inFlight = useRef<{ fetcher: typeof fetchFunction; promise: Promise<T | null> } | null>(null);
+
+  const cancel = useCallback(() => {
+    activeRequestId.current++;
+    controller.current?.abort();
+    controller.current = null;
+    inFlight.current = null;
+    if (mounted.current) setLoading(false);
+  }, []);
 
   useEffect(() => {
+    mounted.current = true;
     return () => {
-      isMountedRef.current = false;
+      mounted.current = false;
+      cancel();
     };
-  }, []);
-  // Memoize refetch so useEffect can safely depend on it.
-  const fetchData = useCallback(async (): Promise<T | null> => {
-    const requestId = ++activeRequestIdRef.current;
-    try {
-      setLoading(true);
-      setError(null);
+  }, [cancel]);
 
-      const result = await fetchFunction();
-      if (!isMountedRef.current || requestId !== activeRequestIdRef.current) {
-        return null;
-      }
-
-      setData(result);
-      return result;
-    } catch (err: unknown) {
-      if (isMountedRef.current && requestId === activeRequestIdRef.current) {
-        setError(
-          err instanceof Error ? err : new Error("An unknown error occurred"),
-        );
+  const refetch = useCallback((): Promise<T | null> => {
+    if (inFlight.current?.fetcher === fetchFunction) return inFlight.current.promise;
+    cancel();
+    const requestId = ++activeRequestId.current;
+    const nextController = new AbortController();
+    controller.current = nextController;
+    setLoading(true);
+    setError(null);
+    const promise = Promise.resolve().then(() => {
+      if (nextController.signal.aborted) return null;
+      return fetchFunction(nextController.signal);
+    }).then((result) => {
+      if (mounted.current && requestId === activeRequestId.current && !nextController.signal.aborted) {
+        setData(result);
+        return result;
       }
       return null;
-    } finally {
-      if (isMountedRef.current && requestId === activeRequestIdRef.current) {
-        setLoading(false);
+    }).catch((failure: unknown) => {
+      if (mounted.current && requestId === activeRequestId.current &&
+          !nextController.signal.aborted && !isAbortError(failure)) {
+        setError(failure instanceof Error ? failure : new Error("Couldn't load this content. Please try again."));
       }
-    }
-  }, [fetchFunction]);
+      return null;
+    }).finally(() => {
+      if (requestId === activeRequestId.current) {
+        inFlight.current = null;
+        controller.current = null;
+        if (mounted.current) setLoading(false);
+      }
+    });
+    inFlight.current = { fetcher: fetchFunction, promise };
+    return promise;
+  }, [cancel, fetchFunction]);
 
   const reset = useCallback(() => {
-    activeRequestIdRef.current++;
+    cancel();
     setData(null);
     setError(null);
-    setLoading(false);
-  }, []);
+  }, [cancel]);
 
   useEffect(() => {
-    if (autoFetch) {
-      fetchData();
-    }
-  }, [autoFetch, fetchData]);
+    if (autoFetch) void refetch();
+    return cancel;
+  }, [autoFetch, cancel, refetch]);
 
-  return { data, loading, error, refetch: fetchData, reset };
+  return { data, loading, error, refetch, reset, cancel };
 };
 
 export default useFetch;

@@ -1,4 +1,5 @@
 import { icons } from "@/constants/icons";
+import PosterImage from "@/components/PosterImage";
 import type { MovieSummary } from "@/types/movies";
 import { Link } from "expo-router";
 import React from "react";
@@ -18,18 +19,30 @@ const MovieCard = ({
 }: Props) => {
   const posterUrl = poster_path
     ? `https://image.tmdb.org/t/p/w500${poster_path}`
-    : "https://placehold.co/600x900/1a1a1a/ffffff.png?text=No+Image";
+    : null;
 
   const rating = vote_average > 0 ? (vote_average / 2).toFixed(1) : "N/A";
+  const year = release_date?.split("-")[0];
+  const accessibilityLabel = [
+    title,
+    rating === "N/A" ? null : `Rating ${rating} out of 5`,
+    year ? `Year ${year}` : null,
+  ].filter(Boolean).join(", ");
 
   return (
     <Link href={`/movies/${id}`} asChild>
-      <TouchableOpacity className="w-full" onPress={onPress}>
-        <Image
-          source={{ uri: posterUrl }}
+      <TouchableOpacity
+        className="w-full"
+        onPress={onPress}
+        accessible
+        accessibilityRole="link"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint="Opens movie details."
+      >
+        <PosterImage
+          uri={posterUrl}
           style={{ width: "100%", aspectRatio: 2 / 3 }}
           className="rounded-lg"
-          resizeMode="cover"
         />
         <Text
           className="text-white text-sm font-semibold mt-2"
@@ -37,7 +50,7 @@ const MovieCard = ({
           {title}
         </Text>
         <View className="flex-row items-center justify-start gap-x-1">
-          <Image source={icons.star} className="size-4" />
+          <Image source={icons.star} className="size-4" accessible={false} />
           <Text className="text-xs text-white font-bold">{rating}</Text>
         </View>
 

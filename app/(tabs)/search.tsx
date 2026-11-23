@@ -1,4 +1,5 @@
 import MovieGrid from "@/components/MovieGrid";
+import RecoveryMessage from "@/components/RecoveryMessage";
 import Screen from "@/components/Screen";
 import SearchBar from "@/components/SearchBar";
 import { icons } from "@/constants/icons";
@@ -9,7 +10,7 @@ import React, { useCallback } from "react";
 import { ActivityIndicator, Image, Text, View } from "react-native";
 
 const SearchScreen = () => {
-  const { query, setQuery, movies, loading, error } = useMovieSearch({
+  const { query, setQuery, movies, loading, error, refetch } = useMovieSearch({
     emptyQueryBehavior: "reset",
     debounceMs: 500,
   });
@@ -17,9 +18,8 @@ const SearchScreen = () => {
   const trackMovieClick = useCallback(
     (movie: MovieSummary) => {
       if (!query.trim()) return;
-      void updateSearchCount(query, movie).catch((err) => {
-        console.log("Search tracking failed:", err);
-      });
+      // Optional analytics must not block navigation or log backend responses.
+      void updateSearchCount(query, movie).catch(() => undefined);
     },
     [query],
   );
@@ -41,18 +41,20 @@ const SearchScreen = () => {
             <View className="my-5">
               <SearchBar
                 placeholder="Search movies..."
+                accessibilityLabel="Search movies"
+                accessibilityHint="Enter a movie title to find matching movies."
                 value={query}
                 onChangeText={setQuery}
               />
             </View>
             {loading && (
-              <ActivityIndicator size="large" color="#0000ff" className="my-3" />
+              <ActivityIndicator size="large" color="#AB8BFF" className="my-3" />
             )}
             {error && (
-              <Text className="text-red-500 my-3">Error: {error.message}</Text>
+              <RecoveryMessage message={error.message} onRetry={() => void refetch()} />
             )}
             {!loading && !error && query.trim() && (movies?.length ?? 0) > 0 && (
-              <Text className="text-xl text-white font-bold">
+              <Text accessibilityRole="header" className="text-xl text-white font-bold mb-4">
                 Search results for <Text className="text-accent">{query}</Text>
               </Text>
             )}

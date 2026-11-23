@@ -43,6 +43,7 @@ export default function MovieGrid({
         justifyContent: "space-between",
         marginBottom: 16,
       }}
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingBottom }}
       showsVerticalScrollIndicator={false}
       ListHeaderComponent={ListHeaderComponent}

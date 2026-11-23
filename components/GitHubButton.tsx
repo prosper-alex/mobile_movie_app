@@ -27,11 +27,15 @@ export default function GitHubButton({ url, title = "View on GitHub" }: Props) {
   return (
     <TouchableOpacity
       onPress={() => void handlePress()}
+      accessible
+      accessibilityRole="link"
+      accessibilityLabel={`${title}, ${displayUrl}`}
+      accessibilityHint="Opens the project link in your browser."
       activeOpacity={0.85}
       className="bg-dark-100 border border-dark-100 rounded-2xl p-4 flex-row items-center justify-between">
       <View className="flex-row items-center flex-1">
         <View className="w-10 h-10 rounded-full bg-dark-200 items-center justify-center mr-3">
-          <FontAwesome name="github" size={20} color="#FFFFFF" />
+          <FontAwesome name="github" size={20} color="#FFFFFF" accessible={false} />
         </View>
         <View className="flex-1">
           <Text className="text-white font-semibold" numberOfLines={1}>
@@ -42,7 +46,7 @@ export default function GitHubButton({ url, title = "View on GitHub" }: Props) {
           </Text>
         </View>
       </View>
-      <FontAwesome name="external-link" size={16} color="#A8B5DB" />
+      <FontAwesome name="external-link" size={16} color="#A8B5DB" accessible={false} />
     </TouchableOpacity>
   );
 }

@@ -1,5 +1,6 @@
 // Track the searches made by a user
 import client from "@/lib/appwrite";
+import { abortError, isAbortError, RequestError } from "@/services/request";
 import type { MovieSummary } from "@/types/movies";
 import { ID, Query, TablesDB } from "appwrite";
 
@@ -9,18 +10,21 @@ const TABLE_ID = process.env.EXPO_PUBLIC_APPWRITE_TABLE_ID;
 const tablesDB = client ? new TablesDB(client) : null;
 const APPWRITE_TIMEOUT_MS = 6000;
 
-const withTimeout = async <T,>(promise: Promise<T>, ms: number) => {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error("Appwrite request timed out."));
-    }, ms);
-  });
-
+const withTimeout = async <T,>(promise: Promise<T>, ms: number, signal?: AbortSignal) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
   try {
-    return await Promise.race([promise, timeoutPromise]);
+    return await Promise.race([promise, new Promise<never>((_, reject) => {
+      onAbort = () => reject(abortError());
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+      timer = setTimeout(() => reject(new RequestError(
+        "Trending searches took too long to load. Check your connection and try again.", "timeout",
+      )), ms);
+    })]);
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
   }
 };
 const SEARCH_KEYS = [
@@ -159,75 +163,66 @@ export const updateSearchCount = async (query: string, movie: MovieSummary) => {
     } else {
       await createSearchRow(query, movie, matchedSearchKey);
     }
-  } catch (error) {
-    console.log("Appwrite updateSearchCount failed:", error);
-    throw error;
+  } catch {
+    throw new Error("Search activity could not be recorded.");
   }
 };
 
-export const getTrendingMovies = async (): Promise<TrendingMovie[]> => {
-  if (!tablesDB || !DATABASE_ID || !TABLE_ID) return [];
-
-  try {
-    const mapRowToTrendingMovie = (row: Record<string, unknown>) => {
-      const searchTermKey = SEARCH_KEYS.find((key) => key in row);
-      const movieIdKey = MOVIE_ID_KEYS.find((key) => key in row);
-      const posterKey = POSTER_KEYS.find((key) => key in row);
-
-      if (!searchTermKey || !movieIdKey || !posterKey) return null;
-
-      const searchTerm = row[searchTermKey];
-      const movieId = row[movieIdKey];
-      const posterUrl = row[posterKey];
-      const title = row.title;
-      const count = row.count;
-
-      if (
-        typeof searchTerm !== "string" ||
-        (typeof movieId !== "number" && typeof movieId !== "string") ||
-        typeof posterUrl !== "string" ||
-        typeof title !== "string" ||
-        typeof count !== "number"
-      ) {
-        return null;
-      }
-
-      return {
-        search_term: searchTerm,
-        movie_id: typeof movieId === "number" ? movieId : Number(movieId),
-        title,
-        count,
-        poster_url: posterUrl,
-      };
+export const parseTrendingRows = (value: unknown): TrendingMovie[] => {
+  const invalid = () => new RequestError(
+    "Trending searches returned incomplete data. Please try again later.", "invalid-response",
+  );
+  if (!value || typeof value !== "object" || !Array.isArray((value as { rows?: unknown }).rows)) throw invalid();
+  return (value as { rows: unknown[] }).rows.map((value) => {
+    if (!value || typeof value !== "object") throw invalid();
+    const row = value as Record<string, unknown>;
+    const searchKey = SEARCH_KEYS.find((key) => key in row);
+    const idKey = MOVIE_ID_KEYS.find((key) => key in row);
+    const posterKey = POSTER_KEYS.find((key) => key in row);
+    if (!searchKey || !idKey || !posterKey) throw invalid();
+    const id = typeof row[idKey] === "string" && String(row[idKey]).trim() ? Number(row[idKey]) : row[idKey];
+    if (!Number.isSafeInteger(id) || Number(id) <= 0 ||
+        typeof row[searchKey] !== "string" || !String(row[searchKey]).trim() ||
+        typeof row[posterKey] !== "string" ||
+        typeof row.title !== "string" ||
+        typeof row.count !== "number" || !Number.isFinite(row.count) || row.count < 0) throw invalid();
+    return {
+      search_term: row[searchKey] as string,
+      movie_id: Number(id),
+      poster_url: row[posterKey] as string,
+      title: row.title,
+      count: row.count,
     };
+  });
+};
 
-    let result;
-    try {
-      result = await withTimeout(
-        tablesDB.listRows({
-          databaseId: DATABASE_ID,
-          tableId: TABLE_ID,
-          queries: [Query.orderDesc("count"), Query.limit(5)],
-        }),
-        APPWRITE_TIMEOUT_MS,
-      );
-    } catch (error) {
-      if (!isMissingAttributeError(error)) throw error;
-      result = await withTimeout(
-        tablesDB.listRows({
-          databaseId: DATABASE_ID,
-          tableId: TABLE_ID,
-          queries: [Query.limit(5)],
-        }),
-        APPWRITE_TIMEOUT_MS,
-      );
-    }
-
-    return result.rows
-      .map((row) => mapRowToTrendingMovie(row as Record<string, unknown>))
-      .filter((row): row is TrendingMovie => row !== null);
+export const getTrendingMovies = async (signal?: AbortSignal): Promise<TrendingMovie[]> => {
+  if (signal?.aborted) throw abortError();
+  if (!tablesDB || !DATABASE_ID || !TABLE_ID) throw new RequestError(
+    "Trending searches aren't configured yet. Movie discovery is still available.", "configuration",
+  );
+  try {
+    const result = await withTimeout(tablesDB.listRows({
+      databaseId: DATABASE_ID,
+      tableId: TABLE_ID,
+      queries: [Query.orderDesc("count"), Query.limit(5)],
+    }), APPWRITE_TIMEOUT_MS, signal);
+    return parseTrendingRows(result);
   } catch (error) {
-    console.log(error);
-    return [];
+    if (signal?.aborted || isAbortError(error)) throw abortError();
+    if (error instanceof RequestError) throw error;
+    const failure = error as { type?: string; code?: number } | null;
+    if (failure?.type === "project_paused") throw new RequestError(
+      "Trending searches are temporarily unavailable. Movie discovery is still available.", "unavailable",
+    );
+    if (failure?.code === 401 || failure?.code === 403) throw new RequestError(
+      "Trending searches are unavailable because access was denied. Please try again later.", "http", failure.code,
+    );
+    if (failure?.code && failure.code > 0) throw new RequestError(
+      "Trending searches couldn't be loaded from the service. Please try again.", "http", failure.code,
+    );
+    throw new RequestError(
+      "Couldn't connect to trending searches. Check your connection and try again.", "network",
+    );
   }
 };

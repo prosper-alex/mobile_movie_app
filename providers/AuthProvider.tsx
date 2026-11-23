@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { readStoredItem } from "@/lib/storage";
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
 
 type AuthUser = {
@@ -15,6 +16,8 @@ type AuthContextValue = {
   state: AuthState;
   login: (user: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
+  initializationError: Error | null;
+  retryInitialization: () => Promise<void>;
 };
 
 const STORAGE_KEY = "auth_state_v1";
@@ -22,7 +25,7 @@ const STORAGE_KEY = "auth_state_v1";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const loadAuthUser = async (): Promise<AuthUser | null> => {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const raw = await readStoredItem(STORAGE_KEY);
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -39,19 +42,32 @@ const loadAuthUser = async (): Promise<AuthUser | null> => {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, setState] = useState<AuthState>({ status: "loading", user: null });
+  const [initializationError, setInitializationError] = useState<Error | null>(null);
+  const mounted = React.useRef(true);
+  const initializationId = React.useRef(0);
+
+  const retryInitialization = useCallback(async () => {
+    const requestId = ++initializationId.current;
+    setInitializationError(null);
+    setState({ status: "loading", user: null });
+    try {
+      const user = await loadAuthUser();
+      if (!mounted.current || requestId !== initializationId.current) return;
+      setState(user ? { status: "authenticated", user } : { status: "unauthenticated", user: null });
+    } catch {
+      if (mounted.current && requestId === initializationId.current) {
+        setInitializationError(new Error("Couldn't read your local profile. Please try again."));
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const user = await loadAuthUser();
-      if (cancelled) return;
-      if (user) setState({ status: "authenticated", user });
-      else setState({ status: "unauthenticated", user: null });
-    })();
+    mounted.current = true;
+    void retryInitialization();
     return () => {
-      cancelled = true;
+      mounted.current = false;
     };
-  }, []);
+  }, [retryInitialization]);
 
   const login = useCallback(async (user: AuthUser) => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
@@ -67,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({ state, login, logout }), [state, login, logout]);
+  const value = useMemo<AuthContextValue>(() => ({ state, login, logout, initializationError, retryInitialization }), [state, login, logout, initializationError, retryInitialization]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

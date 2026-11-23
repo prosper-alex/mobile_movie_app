@@ -37,8 +37,11 @@ export default function Button({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
+      style={{ minHeight: 48 }}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(disabled) }}
       className={[
-        "rounded-full px-5 py-3 items-center justify-center",
+        "min-h-12 rounded-full px-5 py-3 items-center justify-center",
         styles.container,
         disabled ? "opacity-50" : "",
       ]

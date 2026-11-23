@@ -4,23 +4,36 @@ import { Image, TextInput, View } from "react-native";
 
 interface Props {
   placeholder: string;
+  accessibilityLabel: string;
+  accessibilityHint: string;
   onFocus?: () => void;
   value: string;
   onChangeText: (text: string) => void;
 }
 
-const SearchBar = ({ placeholder, onFocus, value, onChangeText }: Props) => {
+const SearchBar = ({
+  placeholder,
+  accessibilityLabel,
+  accessibilityHint,
+  onFocus,
+  value,
+  onChangeText,
+}: Props) => {
   return (
-    <View className=" flex-row items-center bg-dark-200 rounded-full px-5 py-4">
+    <View className=" flex-row items-center bg-dark-200 rounded-full px-5 py-2">
       <Image
         source={icons.search}
         className="size-5"
         resizeMode="contain"
         style={{ tintColor: "#ab8bff" }}
+        accessible={false}
       />
       <TextInput
         onFocus={onFocus}
         placeholder={placeholder}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        style={{ minHeight: 48 }}
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor="#a8b5db"

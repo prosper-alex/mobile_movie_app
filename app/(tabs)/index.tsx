@@ -1,4 +1,6 @@
 import MovieGrid from "@/components/MovieGrid";
+import PersonalizedMoviesSection from "@/components/PersonalizedMoviesSection";
+import RecoveryMessage from "@/components/RecoveryMessage";
 import Screen from "@/components/Screen";
 import SearchBar from "@/components/SearchBar";
 import TrendingMovieCard from "@/components/TrendingMovieCard";
@@ -10,7 +12,7 @@ import React, { useMemo } from "react";
 import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
 
 const HomeScreen = () => {
-  const { query, setQuery, movies, loading, error } = useMovieSearch({
+  const { query, setQuery, movies, loading, error, refetch } = useMovieSearch({
     emptyQueryBehavior: "fetch",
     debounceMs: 500,
   });
@@ -19,6 +21,7 @@ const HomeScreen = () => {
     data: trendingMovies,
     loading: trendingLoading,
     error: trendingError,
+    refetch: retryTrending,
   } = useFetch(getTrendingMovies);
   const trending = useMemo(() => trendingMovies ?? [], [trendingMovies]);
 
@@ -61,6 +64,8 @@ const HomeScreen = () => {
             <View className="my-5">
               <SearchBar
                 placeholder="Search movies..."
+                accessibilityLabel="Search movies"
+                accessibilityHint="Enter a movie title to find matching movies."
                 value={query}
                 onChangeText={setQuery}
               />
@@ -68,17 +73,18 @@ const HomeScreen = () => {
             {!query.trim() && (
               <View className="mb-6">
                 <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-lg text-white font-bold my-9">
+                  <Text accessibilityRole="header" className="text-lg text-white font-bold">
                     Trending Searches
                   </Text>
                 </View>
                 {trendingLoading && (
-                  <ActivityIndicator size="small" color="#0000ff" />
+                  <View className="gap-y-2">
+                    <ActivityIndicator size="small" color="#AB8BFF" />
+                    <Text className="text-light-200">Loading trending searches...</Text>
+                  </View>
                 )}
                 {trendingError && (
-                  <Text className="text-red-500">
-                    Error: {trendingError.message}
-                  </Text>
+                  <RecoveryMessage message={trendingError.message} onRetry={() => void retryTrending()} />
                 )}
                 {!trendingLoading &&
                   !trendingError &&
@@ -104,18 +110,19 @@ const HomeScreen = () => {
                   )}
               </View>
             )}
+            {!query.trim() ? <PersonalizedMoviesSection /> : null}
             {loading && (
               <ActivityIndicator
                 size="large"
-                color="#0000ff"
+                color="#AB8BFF"
                 className="my-3"
               />
             )}
             {error && (
-              <Text className="text-red-500 my-3">Error: {error.message}</Text>
+              <RecoveryMessage message={error.message} onRetry={() => void refetch()} />
             )}
             {!loading && !error && (
-              <Text className="text-xl text-white font-bold">
+              <Text accessibilityRole="header" className={`text-xl text-white font-bold ${movies?.length ? "mb-4" : ""}`}>
                 {query.trim() ? (
                   <>
                     Search results for{" "}
@@ -129,9 +136,9 @@ const HomeScreen = () => {
           </>
         }
         ListEmptyComponent={
-          !loading && !error && query.trim() ? (
+          !loading && !error ? (
             <View className="mt-10">
-              <Text className="text-gray-500 text-center">No movies found</Text>
+              <Text className="text-light-200 text-center">{query.trim() ? "No movies found" : "No popular movies are available right now."}</Text>
             </View>
           ) : null
         }

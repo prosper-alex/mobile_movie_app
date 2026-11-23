@@ -1,13 +1,14 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { completeMovieOnboarding, getMoviePreferences } from "@/lib/preferences";
 
-export const ONBOARDING_STORAGE_KEY = "onboarding_seen_v1";
+// Preserve the exported legacy key for compatibility; new writes use one
+// preference record rather than splitting genres and completion across keys.
+export { LEGACY_ONBOARDING_STORAGE_KEY as ONBOARDING_STORAGE_KEY } from "@/lib/preferencesStorage";
 
 export const getHasSeenOnboarding = async (): Promise<boolean> => {
-  const raw = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
-  return raw === "1";
+  return (await getMoviePreferences()).onboardingCompleted;
 };
 
 export const setHasSeenOnboarding = async (): Promise<void> => {
-  await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+  await completeMovieOnboarding();
 };
 

@@ -1,126 +1,79 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
-
+import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MovieSummary } from "@/types/movies";
+import { createSavedMoviesStorage } from "@/lib/savedMoviesStorage";
+import { readStoredItem } from "@/lib/storage";
 
 type SavedMoviesContextValue = {
   saved: MovieSummary[];
   hydrated: boolean;
+  pending: boolean;
+  error: Error | null;
   isSaved: (movieId: number) => boolean;
-  save: (movie: MovieSummary) => Promise<void>;
-  remove: (movieId: number) => Promise<void>;
-  toggle: (movie: MovieSummary) => Promise<void>;
-  clear: () => Promise<void>;
-  refresh: () => Promise<void>;
+  save: (movie: MovieSummary) => Promise<boolean>;
+  remove: (movieId: number) => Promise<boolean>;
+  toggle: (movie: MovieSummary) => Promise<boolean>;
+  clear: () => Promise<boolean>;
+  refresh: () => Promise<boolean>;
+  retry: () => Promise<boolean>;
 };
-
-const STORAGE_KEY = "saved_movies_v1";
-
 const SavedMoviesContext = createContext<SavedMoviesContextValue | null>(null);
-
-const isMovieSummary = (value: unknown): value is MovieSummary => {
-  if (!value || typeof value !== "object") return false;
-  const movie = value as Record<string, unknown>;
-  return (
-    typeof movie.id === "number" &&
-    typeof movie.title === "string" &&
-    (typeof movie.poster_path === "string" || movie.poster_path === null) &&
-    typeof movie.vote_average === "number" &&
-    typeof movie.release_date === "string"
-  );
-};
-
-const loadSavedMovies = async (): Promise<MovieSummary[]> => {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isMovieSummary);
-  } catch {
-    return [];
-  }
-};
-
-const persistSavedMovies = async (movies: MovieSummary[]) => {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(movies));
-};
 
 export const SavedMoviesProvider = ({ children }: { children: React.ReactNode }) => {
   const [saved, setSaved] = useState<MovieSummary[]>([]);
   const [hydrated, setHydrated] = useState(false);
-
-  const refresh = useCallback(async () => {
-    const movies = await loadSavedMovies();
+  const [pendingCount, setPendingCount] = useState(0);
+  const [error, setError] = useState<Error | null>(null);
+  const mounted = useRef(true);
+  const failedOperation = useRef<(() => Promise<void>) | null>(null);
+  const [storage] = useState(() => createSavedMoviesStorage({
+    getItem: readStoredItem,
+    setItem: (key, value) => AsyncStorage.setItem(key, value),
+    removeItem: (key) => AsyncStorage.removeItem(key),
+  }, (movies) => {
+    if (!mounted.current) return;
     setSaved(movies);
     setHydrated(true);
-  }, []);
+  }));
 
+  const run = useCallback(async (operation: () => Promise<void>) => {
+    if (mounted.current) {
+      setPendingCount((count) => count + 1);
+      setError(null);
+    }
+    try {
+      await operation();
+      failedOperation.current = null;
+      if (mounted.current) setError(null);
+      return true;
+    } catch (failure) {
+      failedOperation.current = operation;
+      if (mounted.current) setError(failure instanceof Error ? failure : new Error("Couldn't update saved movies. Please try again."));
+      return false;
+    } finally {
+      if (mounted.current) setPendingCount((count) => count - 1);
+    }
+  }, []);
+  const refresh = useCallback(() => run(storage.refresh), [run, storage]);
+  const retry = useCallback(() => run(failedOperation.current ?? storage.refresh), [run, storage]);
   useEffect(() => {
-    refresh();
+    mounted.current = true;
+    void refresh();
+    return () => { mounted.current = false; };
   }, [refresh]);
 
-  const isSaved = useCallback(
-    (movieId: number) => saved.some((movie) => movie.id === movieId),
-    [saved],
-  );
-
-  const save = useCallback(async (movie: MovieSummary) => {
-    setSaved((current) => {
-      if (current.some((m) => m.id === movie.id)) return current;
-      const next = [movie, ...current];
-      void persistSavedMovies(next);
-      return next;
-    });
-  }, []);
-
-  const remove = useCallback(async (movieId: number) => {
-    setSaved((current) => {
-      const next = current.filter((movie) => movie.id !== movieId);
-      void persistSavedMovies(next);
-      return next;
-    });
-  }, []);
-
-  const toggle = useCallback(
-    async (movie: MovieSummary) => {
-      if (isSaved(movie.id)) {
-        await remove(movie.id);
-      } else {
-        await save(movie);
-      }
-    },
-    [isSaved, remove, save],
-  );
-
-  const clear = useCallback(async () => {
-    setSaved([]);
-    await AsyncStorage.removeItem(STORAGE_KEY);
-  }, []);
-
-  const value = useMemo<SavedMoviesContextValue>(
-    () => ({
-      saved,
-      hydrated,
-      isSaved,
-      save,
-      remove,
-      toggle,
-      clear,
-      refresh,
-    }),
-    [saved, hydrated, isSaved, save, remove, toggle, clear, refresh],
-  );
-
+  const isSaved = useCallback((id: number) => saved.some((movie) => movie.id === id), [saved]);
+  const save = useCallback((movie: MovieSummary) => run(() => storage.save(movie)), [run, storage]);
+  const remove = useCallback((id: number) => run(() => storage.remove(id)), [run, storage]);
+  const toggle = useCallback((movie: MovieSummary) => run(() => storage.toggle(movie)), [run, storage]);
+  const clear = useCallback(() => run(storage.clear), [run, storage]);
+  const value = useMemo(() => ({ saved, hydrated, pending: pendingCount > 0, error, isSaved, save, remove, toggle, clear, refresh, retry }),
+    [saved, hydrated, pendingCount, error, isSaved, save, remove, toggle, clear, refresh, retry]);
   return <SavedMoviesContext.Provider value={value}>{children}</SavedMoviesContext.Provider>;
 };
 
 export const useSavedMovies = () => {
-  const ctx = React.useContext(SavedMoviesContext);
-  if (!ctx) {
-    throw new Error("useSavedMovies must be used within SavedMoviesProvider");
-  }
-  return ctx;
+  const context = React.useContext(SavedMoviesContext);
+  if (!context) throw new Error("useSavedMovies must be used within SavedMoviesProvider");
+  return context;
 };
-

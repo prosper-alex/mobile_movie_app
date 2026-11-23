@@ -1,5 +1,7 @@
 import Button from "@/components/Button";
 import Screen from "@/components/Screen";
+import RecoveryMessage from "@/components/RecoveryMessage";
+import PosterImage from "@/components/PosterImage";
 import { icons } from "@/constants/icons";
 import { fetchMovieDetails } from "@/services/api";
 import useFetch from "@/services/useFetch";
@@ -22,15 +24,12 @@ const MovieDetailsScreen = () => {
   const params = useLocalSearchParams<{ id?: string }>();
   const movieId = Number(params.id);
 
-  const fetcher = useCallback(() => {
-    if (!Number.isFinite(movieId)) {
-      throw new Error("Invalid movie id.");
-    }
-    return fetchMovieDetails(movieId);
+  const fetcher = useCallback((signal?: AbortSignal) => {
+    return fetchMovieDetails(movieId, signal);
   }, [movieId]);
-  const { data: movie, loading, error } = useFetch(fetcher);
+  const { data: movie, loading, error, refetch } = useFetch(fetcher);
 
-  const { isSaved, toggle } = useSavedMovies();
+  const { isSaved, toggle, hydrated, pending, error: savedError, retry } = useSavedMovies();
 
   const summary = useMemo<MovieSummary | null>(() => {
     if (!movie) return null;
@@ -51,28 +50,34 @@ const MovieDetailsScreen = () => {
 
       <View className="flex-row items-center justify-between mt-2 mb-4">
         <TouchableOpacity
-          onPress={() => router.back()}
-          className="w-11 h-11 rounded-full bg-dark-100 items-center justify-center">
+          onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to the previous screen or Home."
+          style={{ width: 48, height: 48 }}
+          className="w-12 h-12 rounded-full bg-dark-100 items-center justify-center">
           <Image
             source={icons.arrow}
             className="size-5"
             style={{ tintColor: "#ffffff" }}
             resizeMode="contain"
+            accessible={false}
           />
         </TouchableOpacity>
-        <Text className="text-white font-semibold text-base">Details</Text>
-        <View className="w-11 h-11" />
+        <Text accessibilityRole="header" className="text-white font-semibold text-base">Details</Text>
+        <View className="w-12 h-12" />
       </View>
 
       {loading && (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#0000ff" />
+          <ActivityIndicator size="large" color="#AB8BFF" />
         </View>
       )}
 
       {error && (
         <View className="flex-1 items-center justify-center">
-          <Text className="text-red-500 text-center">Error: {error.message}</Text>
+          <RecoveryMessage message={error.message} onRetry={() => void refetch()} />
         </View>
       )}
 
@@ -81,17 +86,13 @@ const MovieDetailsScreen = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}>
           <View className="flex-row">
-            <Image
-              source={{
-                uri: movie.poster_path
-                  ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-                  : "https://placehold.co/600x900/1a1a1a/ffffff.png?text=No+Image",
-              }}
-              className="w-32 h-48 rounded-xl"
-              resizeMode="cover"
+            <PosterImage
+              uri={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null}
+              style={{ width: 128, height: 192 }}
+              className="rounded-xl"
             />
             <View className="flex-1 ml-4">
-              <Text className="text-white text-xl font-bold" numberOfLines={2}>
+              <Text accessibilityRole="header" className="text-white text-xl font-bold" numberOfLines={2}>
                 {movie.title}
               </Text>
               {movie.tagline ? (
@@ -121,7 +122,7 @@ const MovieDetailsScreen = () => {
           </View>
 
           <View className="mt-6">
-            <Text className="text-white font-semibold mb-2">Genres</Text>
+            <Text accessibilityRole="header" className="text-white font-semibold mb-2">Genres</Text>
             <View className="flex-row flex-wrap">
               {movie.genres.map((genre) => (
                 <View
@@ -137,16 +138,19 @@ const MovieDetailsScreen = () => {
           </View>
 
           <View className="mt-6">
-            <Text className="text-white font-semibold mb-2">Overview</Text>
+            <Text accessibilityRole="header" className="text-white font-semibold mb-2">Overview</Text>
             <Text className="text-light-200 leading-6">
               {movie.overview || "No overview available."}
             </Text>
           </View>
 
           <View className="mt-8">
+            {!hydrated && !savedError ? <Text className="text-light-200 mb-3">Loading your saved movies...</Text> : null}
+            {savedError ? <RecoveryMessage message={savedError.message} busy={pending} onRetry={() => void retry()} /> : null}
             <Button
-              title={saved ? "Remove from saved" : "Save movie"}
+              title={pending ? "Updating saved movies..." : saved ? "Remove from saved" : "Save movie"}
               variant={saved ? "secondary" : "primary"}
+              disabled={!hydrated || pending || !summary}
               onPress={() => {
                 if (!summary) return;
                 void toggle(summary);

@@ -15,6 +15,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="movies/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+          <Stack.Screen name="genre-preferences" options={{ headerShown: false }} />
         </Stack>
       </SavedMoviesProvider>
     </AuthProvider>
